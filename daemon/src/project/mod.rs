@@ -68,11 +68,6 @@ pub trait ProjectBuild: ProjectData {
         let name = self.name().to_owned();
         let xcworkspace = format!("{}.xcworkspace", &name);
         if self.root().join(&xcworkspace).exists() {
-            args.iter_mut().for_each(|arg| {
-                if arg == "-target" {
-                    *arg = "-scheme".into()
-                }
-            });
             args.extend_from_slice(&["-workspace".into(), xcworkspace]);
         } else {
             args.extend_from_slice(&["-project".into(), format!("{}.xcodeproj", name)]);

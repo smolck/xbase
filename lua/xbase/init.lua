@@ -132,4 +132,11 @@ M.setup = function(opts)
   end)
 end
 
+M.testing_with_things = function()
+  require'xbase'.build({
+    command = "Build",
+    settings = { scheme = "Things (iOS)", configuration = "Debug" },
+  })
+end
+
 return M

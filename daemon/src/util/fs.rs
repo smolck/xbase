@@ -2,7 +2,7 @@
 use anyhow::Result;
 use std::{fmt::Debug, path::Path};
 use tap::Pipe;
-use xbase_proto::BuildSettings;
+use xbase_proto::{BuildSettings, BuildMethod};
 
 pub fn get_dirname_dir_root(path: impl AsRef<Path>) -> Option<String> {
     let path = path.as_ref();
@@ -27,9 +27,12 @@ pub fn _get_build_cache_dir<P: AsRef<Path> + Debug>(
             .to_string();
 
         if let Some(config) = config {
-            let target = &config.target;
+            let target_or_scheme = match &config.method {
+                BuildMethod::WithTarget(target) => target,
+                BuildMethod::WithScheme(scheme) => scheme,
+            };
             let config = config.configuration.to_string();
-            Some(format!("{base}/{target}_{config}",).replace(" ", "_"))
+            Some(format!("{base}/{target_or_scheme}_{config}",).replace(" ", "_"))
         } else {
             Some(base)
         }

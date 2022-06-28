@@ -52,9 +52,10 @@ impl ProjectBuild for SwiftProject {
         cfg: &BuildSettings,
         _device: Option<&Device>,
     ) -> Result<(StringStream, Vec<String>)> {
-        log::info!("Building {}", cfg.target);
+        let target = cfg.target().expect("Can't build Swift package with scheme");
+        log::info!("Building {}", cfg.target().unwrap());
 
-        let args = vec!["build", "--target", &cfg.target];
+        let args = vec!["build", "--target", &target];
         let mut process = Process::new("/usr/bin/swift");
 
         process.args(&args);
@@ -101,7 +102,7 @@ impl ProjectRun for SwiftProject {
 
         // WARN: THIS MIGHT FAIL BECAUSE BUILD IS NOT YET RAN
         let output = String::from_utf8(output.stdout).unwrap();
-        let bin_path = PathBuf::from(output.trim()).join(&cfg.target);
+        let bin_path = PathBuf::from(output.trim()).join(&cfg.target().unwrap());
 
         log::info!("Running {:?} via {bin_path:?}", self.name());
 

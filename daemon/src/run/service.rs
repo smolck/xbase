@@ -36,12 +36,12 @@ impl RunService {
             device,
             ..
         } = req;
-        let target = &settings.target;
+        let method = &settings.method;
         let device = state.devices.from_lookup(device);
         let is_once = req.ops.is_once();
 
         let process = get_runner(state, &client, &settings, device.as_ref(), is_once).await?;
-        let handler = RunServiceHandler::new(&key, target, &client, process)?
+        let handler = RunServiceHandler::new(&key, method, &client, process)?
             .pipe(Mutex::new)
             .pipe(Arc::new);
 
@@ -70,12 +70,11 @@ impl Watchable for RunService {
         handler.process().kill().await;
         handler.inner().abort();
 
-        let target = &settings.target;
         let device = self.device.as_ref();
 
         *handler = RunServiceHandler::new(
             key,
-            target,
+            &settings.method,
             client,
             get_runner(state, client, settings, device, false).await?,
         )?;

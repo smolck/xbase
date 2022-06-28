@@ -62,7 +62,7 @@ impl RequestHandler for RunRequest {
                 state.clients.get(&pid)?.set_watching(true).await?;
             }
         } else {
-            log::info!("[target: {}] stopping .....", &self.settings.target);
+            log::info!("[{}] stopping .....", &self.settings.method.format_for_log_info());
             let watcher = state.watcher.get_mut(&self.client.root)?;
             let listener = watcher.remove(&self.to_string())?;
             state
@@ -99,28 +99,31 @@ async fn get_runner<'a>(
         logger.set_running(false).await?;
     }
 
-    let target = &settings.target;
     let (runner, stream, args) = state.projects.get(root)?.get_runner(&settings, device)?;
 
-    logger.set_title(format!("Build:{target}"));
-    log::info!("[target: {target}] building .....");
+    logger.set_title(format!("Build:{}", settings.method.scheme_or_target()));
+
+    // TODO(smolck): Better naming
+    let log_info_info = settings.method.format_for_log_info();
+
+    log::info!("[{}] building .....", log_info_info);
 
     let success = logger.consume_build_logs(stream, true, !is_once).await?;
     if !success {
-        let msg = format!("[target: {target}] failed to be built",);
+        let msg = format!("[{}] failed to be built", log_info_info);
         logger.nvim.echo_err(&msg).await?;
-        log::error!("[target: {target}] failed to be built");
+        log::error!("[{}] failed to be built", log_info_info);
         log::error!("[ran: 'xcodebuild {}']", args.join(" "));
         return Err(Error::Build(msg));
     } else {
-        log::info!("[target: {target}] built successfully");
+        log::info!("[{}] built successfully", log_info_info);
     }
 
-    logger.set_title(format!("Run:{target}"));
+    logger.set_title(format!("Run:{}", settings.method.scheme_or_target()));
     logger.set_running(true).await?;
 
     let process = runner.run(logger).await?;
-    log::info!("[target: {target}] running .....");
+    log::info!("[{}] running .....", log_info_info);
 
     Ok(process)
 }

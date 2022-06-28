@@ -72,27 +72,71 @@ impl<'a> FromLua<'a> for Operation {
         }
     }
 }
+#[derive(Clone, Debug, Serialize, Deserialize, EnumDisplay, EnumString)]
+#[serde(untagged)]
+pub enum BuildMethod {
+    /// Scheme to build
+    WithScheme(String),
+    /// Target to build
+    WithTarget(String),
+}
+
+impl BuildMethod {
+    pub fn format_for_log_info(&self) -> String {
+        match self {
+            BuildMethod::WithScheme(scheme) => {
+                format!("scheme: {scheme}")
+            }
+            BuildMethod::WithTarget(target) => {
+                format!("target: {target}")
+            }
+        }
+    }
+
+    pub fn scheme_or_target(&self) -> &str {
+        match self {
+            BuildMethod::WithScheme(scheme) => scheme,
+            BuildMethod::WithTarget(target) => target,
+        }
+    }
+}
 
 /// Fields required to build a project
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BuildSettings {
-    /// Target to build
-    pub target: String,
+    /// How to build
+    pub method: BuildMethod,
     /// Configuration to build with, default Debug
     pub configuration: BuildConfiguration,
-    /// Scheme to build with
-    pub scheme: Option<String>,
 }
 
 #[cfg(feature = "neovim")]
 impl<'a> FromLua<'a> for BuildSettings {
     fn from_lua(value: LuaValue<'a>, _: &'a Lua) -> LuaResult<Self> {
         if let LuaValue::Table(table) = value {
-            Ok(Self {
-                target: table.get("target")?,
-                configuration: table.get("configuration")?,
-                scheme: table.get("scheme")?,
-            })
+            let scheme: Option<String> = table.get("scheme")?;
+            let target: Option<String> = table.get("target")?;
+
+            match (scheme, target) {
+                (Some(scheme), None) => {
+                    Ok(Self {
+                        method: BuildMethod::WithScheme(scheme),
+                        configuration: table.get("configuration")?,
+                    })
+                }
+                (None, Some(target)) => {
+                    Ok(Self {
+                        method: BuildMethod::WithTarget(target),
+                        configuration: table.get("configuration")?,
+                    })
+                }
+                (Some(_), Some(_)) => {
+                    Err(LuaError::external("Expected either BuildSettings.scheme or BuildSettings.target, got both"))
+                }
+                (None, None) => {
+                    Err(LuaError::external("Expected value BuildSettings.scheme or BuildSettings.target not found"))
+                }
+            }
         } else {
             Err(LuaError::external(
                 "Expected a table value for BuildSettings",
@@ -162,10 +206,15 @@ impl Display for BuildSettings {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "-configuration {}", self.configuration)?;
 
-        if let Some(ref scheme) = self.scheme {
-            write!(f, " -scheme {scheme}")?;
+        match self.method {
+            BuildMethod::WithScheme(ref scheme) => {
+                write!(f, " -scheme \"{scheme}\"")?;
+            }
+            BuildMethod::WithTarget(ref target) => {
+                write!(f, " -target \"{target}\"")?;
+            }
         }
-        write!(f, " -target {}", self.target)?;
+
         Ok(())
     }
 }
@@ -175,6 +224,20 @@ impl BuildSettings {
             .split_whitespace()
             .map(ToString::to_string)
             .collect::<Vec<String>>()
+    }
+
+    pub fn target(&self) -> Option<&str> {
+        match &self.method {
+            BuildMethod::WithScheme(_) => None,
+            BuildMethod::WithTarget(target) => Some(target),
+        }
+    }
+
+    pub fn scheme(&self) -> Option<&str> {
+        match &self.method {
+            BuildMethod::WithScheme(scheme) => Some(scheme),
+            BuildMethod::WithTarget(_) => None,
+        }
     }
 }
 

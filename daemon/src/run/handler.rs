@@ -2,7 +2,7 @@
 use crate::{constants::DAEMON_STATE, Result};
 use process_stream::{Process, StreamExt};
 use tokio::task::JoinHandle;
-use xbase_proto::Client;
+use xbase_proto::{BuildMethod, Client};
 
 /// Run Service Task Handler
 pub struct RunServiceHandler {
@@ -14,11 +14,11 @@ impl RunServiceHandler {
     // Change the status of the process to running
     pub fn new(
         key: &String,
-        target: &String,
+        build_method: &BuildMethod,
         client: &Client,
         mut process: Process,
     ) -> Result<Self> {
-        let (key, target, client) = (key.clone(), target.clone(), client.clone());
+        let (key, build_method, client) = (key.clone(), build_method.clone(), client.clone());
         let mut stream = process.spawn_and_stream()?;
         let kill_send = process.clone_kill_sender().unwrap();
 
@@ -39,7 +39,7 @@ impl RunServiceHandler {
                     }
                 };
 
-                logger.set_title(format!("Run:{target}"));
+                logger.set_title(format!("Run:{}", build_method.scheme_or_target()));
 
                 use process_stream::ProcessItem::*;
                 match output {
@@ -63,7 +63,7 @@ impl RunServiceHandler {
                         }
                         logger.set_status_end(success, !success).await?;
 
-                        log::info!("[target: {target}] runner closed");
+                        log::info!("[{}] runner closed", build_method.format_for_log_info());
                         break;
                     }
                 };

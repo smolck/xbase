@@ -55,27 +55,47 @@ impl RequestHandler for BuildRequest {
 impl Watchable for BuildRequest {
     async fn trigger(&self, state: &MutexGuard<State>, _event: &Event) -> Result<()> {
         let is_once = self.ops.is_once();
-        let (root, config) = (&self.client.root, &self.settings);
-        let (stream, args) = state.projects.get(root)?.build(&config, None)?;
+        let root = &self.client.root;
+        let (stream, args) = state.projects.get(root)?.build(&self.settings, None)?;
         let nvim = state.clients.get(&self.client.pid)?;
         let logger = &mut nvim.logger();
 
-        logger.set_title(format!(
-            "{}:{}",
-            if is_once { "Build" } else { "Rebuild" },
-            config.target
-        ));
+        if let xbase_proto::BuildMethod::WithTarget(ref target) = self.settings.method {
+            logger.set_title(format!(
+                "{}:{}",
+                if is_once { "Build" } else { "Rebuild" },
+                target
+            ));
 
-        log::info!("[target: {}] building .....", self.settings.target);
-        let success = logger.consume_build_logs(stream, false, !is_once).await?;
-        if !success {
-            let ref msg = format!("Failed: {} ", config.to_string());
-            nvim.echo_err(msg).await?;
-            log::error!("[target: {}] failed to be built", self.settings.target);
-            log::error!("[ran: 'xcodebuild {}']", args.join(" "));
+            log::info!("[target: {}] building .....", target);
+            let success = logger.consume_build_logs(stream, false, !is_once).await?;
+            if !success {
+                let ref msg = format!("Failed: {} ", self.settings.to_string());
+                nvim.echo_err(msg).await?;
+                log::error!("[target: {}] failed to be built", target);
+                log::error!("[ran: 'xcodebuild {}']", args.join(" "));
+            } else {
+                log::info!("[target: {}] built successfully", target);
+            };
         } else {
-            log::info!("[target: {}] built successfully", self.settings.target);
-        };
+            let scheme = self.settings.scheme().unwrap();
+            logger.set_title(format!(
+                "{}:{}",
+                if is_once { "Build" } else { "Rebuild" },
+                scheme
+            ));
+
+            log::info!("[scheme: {}] building .....", scheme);
+            let success = logger.consume_build_logs(stream, false, !is_once).await?;
+            if !success {
+                let ref msg = format!("Failed: {} ", self.settings.to_string());
+                nvim.echo_err(msg).await?;
+                log::error!("[scheme: {}] failed to be built", scheme);
+                log::error!("[ran: 'xcodebuild {}']", args.join(" "));
+            } else {
+                log::info!("[scheme: {}] built successfully", scheme);
+            };
+        }
 
         Ok(())
     }
